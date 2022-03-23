@@ -13,6 +13,7 @@ struct Chip8 {
 	unsigned short stack[16];
 	unsigned short sp;
 	unsigned char keys[16];
+	int draw;
 };
 
 void initialize(struct Chip8 *chip8);
@@ -26,6 +27,7 @@ void display(struct Chip8 *chip8);
 void input(struct Chip8 *chip8);
 
 
+/*
 int main(int arg, char **argv){
 	//FILE *f;
 	const int width = 640;
@@ -38,24 +40,31 @@ int main(int arg, char **argv){
 
 	load(argv[1], &chip8);
 	
-	chip8.gfx[1][1] = 1;
-	
 	SetTargetFPS(60);
 	
 	while(!WindowShouldClose()){
 	    if(chip8.pc<4096){
-	        emulate(&chip8);
-	        /*for(int i=0; i<64; i++){
-	            for(int j=0; j<32; j++){
-	                printf("%d ", chip8.gfx[i][j]);
-	            }
-	            printf("\n");
-	        }*/	    }
+            emulate(&chip8);
+	    }
 	    display(&chip8);
 	    input(&chip8);
 	}
 	
 	CloseWindow();
+
+	return 0;
+}
+*/
+
+
+int main(int arg, char **argv){
+	//FILE *f;
+	
+	
+	struct Chip8 chip8;
+	initialize(&chip8);
+	
+	emulate(&chip8);
 
 	return 0;
 }
@@ -65,6 +74,8 @@ int main(int arg, char **argv){
 void initialize(struct Chip8 *chip8){
 	chip8->pc = 0x200;
 	chip8->opcode = 0;
+	chip8->sp = 0;
+	chip8->draw = 1;
 	for(int i=0; i<4096; i++){
 		chip8->memory[i] = 0;
 	}
@@ -186,21 +197,25 @@ void dissemble(struct Chip8 *chip8, unsigned short pc){
 
 
 void emulate(struct Chip8 *chip8){
-	chip8->opcode = (chip8->memory[chip8->pc] << 8) | chip8->memory[chip8->pc+1];
+	//chip8->opcode = (chip8->memory[chip8->pc] << 8) | chip8->memory[chip8->pc+1];
 	
+	chip8->opcode = 0x6022;
+
 	chip8->pc +=2;
-	//printf("%04x\n", chip8->opcode & 0xF000);
-	
+
 	if(chip8->opcode == 0x0000){
 	    return;
 	}
 
 	switch(chip8->opcode & 0xF000) {
 		case 0x0000: switch(chip8->opcode & 0x0FFF){
+		    
+		    //clear display
 			case 0x00E0: {
 			    for(int i=0; i<4096; i++){
 			        chip8->memory[i] = 0;
 			    }
+			    chip8->draw = 1;
 			    break;
 			}
 			
@@ -214,36 +229,54 @@ void emulate(struct Chip8 *chip8){
 		}
 		break;
 		
+		//jump addr
+		//checked
 		case 0x1000: chip8->pc = chip8->opcode & 0x0FFF; break;
 		
+		//call addr
+		//checked
 		case 0x2000: {
 			chip8->stack[chip8->sp] = chip8->pc;
 			++chip8->sp;
 			chip8->pc = chip8->opcode & 0x0FFF;
 			break;
 		}
+		
+		//3xkk check Vx == kk and increment pc if true
+		//checked
 		case 0x3000: {
 			if((chip8->V[(chip8->opcode & 0x0F00) >> 8]) == (chip8->opcode & 0x00FF)){
 				chip8->pc +=2;
 			}
 			break;
 		}
+		
+		//4xkk check Vx != kk and increment pc
+		//checked
 		case 0x4000:{
 			if((chip8->V[(chip8->opcode & 0x0F00) >> 8]) != (chip8->opcode & 0x00FF)){
 				chip8->pc +=2;
 			}
 			break;
 		}
+		
+		//5xy0 skip next instruction if Vx == Vy
+		//checked
 		case 0x5000:{
 			if((chip8->V[(chip8->opcode & 0x0F00) >> 8]) == (chip8->V[(chip8->opcode & 0x00F0) >> 4])){
 				chip8->pc +=2;
 			}
 			break;
 		}
+		
+		//6xkk Vx = 6xkk
+		//working
 		case 0x6000:{
 			chip8->V[(chip8->opcode & 0x0F00) >> 8] = chip8->opcode & 0x00FF;
 			break;
 		}
+		
+		//
 		case 0x7000:{
 			chip8->V[(chip8->opcode & 0x0F00) >> 8] = chip8->V[(chip8->opcode & 0x0F00) >> 8] + chip8->opcode & 0x00FF;
 			break;
@@ -329,7 +362,9 @@ void emulate(struct Chip8 *chip8){
 			if(chip8->V[(chip8->opcode & 0x0F00) >> 8] != chip8->V[(chip8->opcode & 0x00F0) >> 4]){
 				chip8->pc += 2;
 			}
+			break;
 		}
+		
 		case 0xA000: {
 			chip8->I = chip8->opcode & 0x0FFF;
 			break;
@@ -342,15 +377,19 @@ void emulate(struct Chip8 *chip8){
 			chip8->V[(chip8->opcode & 0x0F00) >> 8] = (rand()%255) & (chip8->opcode & 0x00FF);
 			break;
 		}
+		
+		//checked
 		case 0xD000: {
 		    unsigned char x = chip8->V[(chip8->opcode & 0x0F00) >> 8] % 64;
 		    unsigned char y = chip8->V[(chip8->opcode & 0x00F0) >> 4] % 32;
 		    unsigned char height = chip8->opcode & 0x000F;
 		    
-		    chip8->V[16] = 0;
+		    //printf("%d, %d\n", x, y);
+		    
+		    chip8->V[15] = 0;
+		    
 		    for(int i=0; i<height; i++){
 		        unsigned char spriteByte = chip8->memory[chip8->I + i];
-		        //printf("%x\n", spriteByte);
 		        
 		        for(int j=0; j<8; j++){
 		            unsigned char spritePixel = spriteByte & (0x80 >> j);
@@ -359,14 +398,16 @@ void emulate(struct Chip8 *chip8){
 		            if(spritePixel){
 		                
 		                if(displayPixel == 0xFF){
-		                    chip8->V[16] = 1;
+		                    chip8->V[15] = 1;
 		                }
 		                
-		                displayPixel ^= 0xFF;
+		                chip8->gfx[x+j][y+i] ^= 0xFF;
+		                //printf("%d %d: %x\n", x+j, y+i, chip8->gfx[x+j][y+i]);
 		            }
 		        }
 		    }
 		}
+		chip8->draw = 1;
 		break;
 		
 		case 0xE000: 
@@ -459,6 +500,7 @@ void emulate(struct Chip8 *chip8){
     				break;
     			}
     			
+    			//working but uncheked
     			case 0x001E: {
     				chip8->I = chip8->I + chip8->V[(chip8->opcode & 0x0F00) >> 8];
     				break;
@@ -493,26 +535,30 @@ void emulate(struct Chip8 *chip8){
     				break;
     			}
     		}
+    		break;
+    		
 		default: printf("wrong opcode! opcode:%04x\n", chip8->opcode); break;
 	}
 }
 
-
+/*
 void display(struct Chip8 *chip8){
     
-    BeginDrawing();
+    //if(chip8->draw == 1){
+        BeginDrawing();
     
-    ClearBackground(BLACK);
-    
-    for(int rows=0; rows<32; rows++){
-        for(int cols=0; cols<64; cols++){
-            if(chip8->gfx[cols][rows] == 1){
-                DrawRectangle(cols*10, rows*10, 10, 10, RAYWHITE);
+        ClearBackground(BLACK);
+        
+        for(int rows=0; rows<32; rows++){
+            for(int cols=0; cols<64; cols++){
+                if(chip8->gfx[cols][rows] == 0xFF){
+                    DrawRectangle(cols*10, rows*10, 10, 10, RAYWHITE);
+                }
             }
         }
-    }
+        
+        EndDrawing();
     
-    EndDrawing();
 }
 
 void input(struct Chip8 *chip8){
@@ -614,4 +660,4 @@ void input(struct Chip8 *chip8){
     else if(IsKeyUp(KEY_V)){
         chip8->V[15] = 1;
     }
-}
+}*/
