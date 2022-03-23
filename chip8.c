@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <raylib.h>
 
 struct Chip8 {
 	unsigned char memory[4096];
@@ -18,31 +19,47 @@ void initialize(struct Chip8 *chip8);
 
 void load(char *argv, struct Chip8 *chip8);
 
-void emulate(struct Chip8 *chip8, unsigned short pc);
+void emulate(struct Chip8 *chip8);
+
+void display(struct Chip8 *chip8);
+
+void input(struct Chip8 *chip8);
 
 
 int main(int arg, char **argv){
 	//FILE *f;
+	const int width = 640;
+	const int height = 320;
+	
+	InitWindow(width, height, "chip8");
+	
 	struct Chip8 chip8;
 	initialize(&chip8);
 
 	load(argv[1], &chip8);
 	
-	/*
-	for(int i=0; i<4096; i++){
-		printf("%x ", chip8.memory[i]);
+	chip8.gfx[1][1] = 1;
+	
+	SetTargetFPS(60);
+	
+	while(!WindowShouldClose()){
+	    if(chip8.pc<4096){
+	        emulate(&chip8);
+	        /*for(int i=0; i<64; i++){
+	            for(int j=0; j<32; j++){
+	                printf("%d ", chip8.gfx[i][j]);
+	            }
+	            printf("\n");
+	        }*/	    }
+	    display(&chip8);
+	    input(&chip8);
 	}
-	*/
-	printf("\n");
-
-	while(chip8.pc<4096){
-		emulate(&chip8, chip8.pc);
-		printf("\n%d\n", chip8.sp);
-		chip8.pc += 2;
-	}
+	
+	CloseWindow();
 
 	return 0;
 }
+
 
 
 void initialize(struct Chip8 *chip8){
@@ -63,6 +80,28 @@ void initialize(struct Chip8 *chip8){
 	chip8->I = 0;
 	chip8->timer_delay = 0;
 	chip8->sound_delay = 0;
+	char fonts[] = {
+	    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    	0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    	0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    	0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    	0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    	0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    	0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    	0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    	0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    	0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    	0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    	0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    	0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    	0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+	};
+	
+	for(int i=0; i<80; i++){
+	    chip8->memory[i+0x50] = fonts[i];
+	}
 }
 
 
@@ -146,24 +185,39 @@ void dissemble(struct Chip8 *chip8, unsigned short pc){
 }
 
 
-void emulate(struct Chip8 *chip8, unsigned short pc){
-	chip8->opcode = (chip8->memory[pc] << 8) | chip8->memory[pc+1];
-
-	if(chip8->opcode == 0x0000){
-		return;
-	}
+void emulate(struct Chip8 *chip8){
+	chip8->opcode = (chip8->memory[chip8->pc] << 8) | chip8->memory[chip8->pc+1];
+	
+	chip8->pc +=2;
 	//printf("%04x\n", chip8->opcode & 0xF000);
+	
+	if(chip8->opcode == 0x0000){
+	    return;
+	}
 
 	switch(chip8->opcode & 0xF000) {
 		case 0x0000: switch(chip8->opcode & 0x0FFF){
-			case 0x00E0: printf("clear display"); break;
-			case 0x00EE: printf("opcode:%04x, ins:%s\n", chip8->opcode, "00EE"); break;
-			default: printf("opcode:%04x, ins:%s\n", chip8->opcode, "0nnn"); break;	
+			case 0x00E0: {
+			    for(int i=0; i<4096; i++){
+			        chip8->memory[i] = 0;
+			    }
+			    break;
+			}
+			
+			case 0x00EE: {
+			    --chip8->sp;
+			    chip8->pc = chip8->stack[chip8->sp];
+			    break;
+			}
+			
+			//default: printf("opcode:%04x, ins:%s\n", chip8->opcode, "0nnn"); break;	
 		}
-			break;
-		case 0x1000: pc = chip8->opcode & 0x0FFF; break;
+		break;
+		
+		case 0x1000: chip8->pc = chip8->opcode & 0x0FFF; break;
+		
 		case 0x2000: {
-			chip8->stack[chip8->sp] = pc;
+			chip8->stack[chip8->sp] = chip8->pc;
 			++chip8->sp;
 			chip8->pc = chip8->opcode & 0x0FFF;
 			break;
@@ -288,67 +342,276 @@ void emulate(struct Chip8 *chip8, unsigned short pc){
 			chip8->V[(chip8->opcode & 0x0F00) >> 8] = (rand()%255) & (chip8->opcode & 0x00FF);
 			break;
 		}
-		case 0xD000: printf("opcode:%04x, ins:%s\n", chip8->opcode, "Dxyn"); break;
-		case 0xE000: switch(chip8->opcode & 0x00FF){
-			case 0x009E: {
-				if(chip8->keys[chip8->V[(chip8->opcode & 0x0F00) >> 8]] == 1){
-					chip8->pc += 2;
-				}
-			}
-			case 0x00A1: {
-				if(chip8->keys[chip8->V[(chip8->opcode & 0x0F00) >> 8]] == 0){
-					chip8->pc += 2;
-				}
-			}
+		case 0xD000: {
+		    unsigned char x = chip8->V[(chip8->opcode & 0x0F00) >> 8] % 64;
+		    unsigned char y = chip8->V[(chip8->opcode & 0x00F0) >> 4] % 32;
+		    unsigned char height = chip8->opcode & 0x000F;
+		    
+		    chip8->V[16] = 0;
+		    for(int i=0; i<height; i++){
+		        unsigned char spriteByte = chip8->memory[chip8->I + i];
+		        //printf("%x\n", spriteByte);
+		        
+		        for(int j=0; j<8; j++){
+		            unsigned char spritePixel = spriteByte & (0x80 >> j);
+		            unsigned char displayPixel = chip8->gfx[x+j][y+i];
+		            
+		            if(spritePixel){
+		                
+		                if(displayPixel == 0xFF){
+		                    chip8->V[16] = 1;
+		                }
+		                
+		                displayPixel ^= 0xFF;
+		            }
+		        }
+		    }
 		}
-			break;
-		case 0xF000: switch(chip8->opcode &0x00FF){
+		break;
+		
+		case 0xE000: 
+    		switch(chip8->opcode & 0x00FF){
+    			case 0x009E: {
+    				if(chip8->keys[chip8->V[(chip8->opcode & 0x0F00) >> 8]] == 1){
+    					chip8->pc += 2;
+    				}
+    			}
+    			case 0x00A1: {
+    				if(chip8->keys[chip8->V[(chip8->opcode & 0x0F00) >> 8]] == 0){
+    					chip8->pc += 2;
+    				}
+    			}
+    		}
+    			break;
 			
-			case 0x0007: {
-				chip8->V[(chip8->opcode & 0x0F00) >> 8] = chip8->timer_delay;
-				break;
-			}
-
-			case 0x000A: printf("opcode:%04x, ins:%s\n", chip8->opcode, "Fx0A"); break;
-			
-			case 0x0015: {
-				chip8->timer_delay = chip8->V[(chip8->opcode & 0x0F00) >> 8];
-				break;
-			}
-
-			case 0x0018: {
-				chip8->sound_delay = chip8->V[(chip8->opcode & 0x0F00) >> 8];
-				break;
-			}
-			case 0x001E: {
-				chip8->I = chip8->I + chip8->V[(chip8->opcode & 0x0F00) >> 8];
-				break;
-			}
-			
-			case 0x0029: printf("opcode:%04x, ins:%s\n", chip8->opcode, "Fx29"); break;
-			
-			case 0x0033: {
-				chip8->memory[chip8->I] = chip8->V[(chip8->opcode & 0x0F00) >> 8] / 100;
-				chip8->memory[chip8->I + 1] = (chip8->V[(chip8->opcode & 0x0F00) >> 8] % 100) / 10;
-				chip8->memory[chip8->I + 2] = chip8->V[(chip8->opcode & 0x0F00) >> 8] % 10;
-				break;
-
-			}
-
-			case 0x0055: {
-				for(int i=0; i<16; i++){
-					chip8->memory[chip8->I + i] = chip8->V[i];
-				}
-				break;
-			}
-			
-			case 0x0065: {
-				for(int i=0; i<16; i++){
-					chip8->V[i] = chip8->memory[chip8->I + i];
-				}
-				break;
-			}
-		}
+		case 0xF000: 
+    		switch(chip8->opcode & 0x00FF){
+    			
+    			case 0x0007: {
+    				chip8->V[(chip8->opcode & 0x0F00) >> 8] = chip8->timer_delay;
+    				break;
+    			}
+    
+    			case 0x000A: {
+    			    unsigned char Vx = (chip8->opcode & 0x0F00) >> 8;
+    			    
+    			    if(chip8->keys[0]){
+    			        chip8->V[Vx] = 0;
+    			    }
+    			    else if(chip8->keys[1]){
+    			        chip8->V[Vx] = 1;
+    			    }
+    			    else if(chip8->keys[2]){
+    			        chip8->V[Vx] = 2;
+    			    }
+    			    else if(chip8->keys[3]){
+    			        chip8->V[Vx] = 3;
+    			    }
+    			    else if(chip8->keys[4]){
+    			        chip8->V[Vx] = 4;
+    			    }
+    			    else if(chip8->keys[5]){
+    			        chip8->V[Vx] = 5;
+    			    }
+    			    else if(chip8->keys[6]){
+    			        chip8->V[Vx] = 6;
+    			    }
+    			    else if(chip8->keys[7]){
+    			        chip8->V[Vx] = 7;
+    			    }
+    			    else if(chip8->keys[8]){
+    			        chip8->V[Vx] = 8;
+    			    }
+    			    else if(chip8->keys[9]){
+    			        chip8->V[Vx] = 9;
+    			    }
+    			    else if(chip8->keys[10]){
+    			        chip8->V[Vx] = 10;
+    			    }
+    			    else if(chip8->keys[11]){
+    			        chip8->V[Vx] = 11;
+    			    }
+    			    else if(chip8->keys[12]){
+    			        chip8->V[Vx] = 12;
+    			    }
+    			    else if(chip8->keys[13]){
+    			        chip8->V[Vx] = 13;
+    			    }
+    			    else if(chip8->keys[14]){
+    			        chip8->V[Vx] = 14;
+    			    }
+    			    else if(chip8->keys[15]){
+    			        chip8->V[Vx] = 15;
+    			    }
+    			    else {
+    			        chip8->pc -= 2;
+    			    }
+    			    break;
+    			} 
+    			
+    			case 0x0015: {
+    				chip8->timer_delay = chip8->V[(chip8->opcode & 0x0F00) >> 8];
+    				break;
+    			}
+    
+    			case 0x0018: {
+    				chip8->sound_delay = chip8->V[(chip8->opcode & 0x0F00) >> 8];
+    				break;
+    			}
+    			
+    			case 0x001E: {
+    				chip8->I = chip8->I + chip8->V[(chip8->opcode & 0x0F00) >> 8];
+    				break;
+    			}
+    			
+    			case 0x0029: {
+    			    unsigned char digit = chip8->V[(chip8->opcode & 0x0F00) >> 8];
+    			    
+    			    chip8->I = 0x50 + (5 * digit);
+    			} 
+    			break;
+    			
+    			case 0x0033: {
+    				chip8->memory[chip8->I] = chip8->V[(chip8->opcode & 0x0F00) >> 8] / 100;
+    				chip8->memory[chip8->I + 1] = (chip8->V[(chip8->opcode & 0x0F00) >> 8] % 100) / 10;
+    				chip8->memory[chip8->I + 2] = chip8->V[(chip8->opcode & 0x0F00) >> 8] % 10;
+    				break;
+    
+    			}
+    
+    			case 0x0055: {
+    				for(int i=0; i<16; i++){
+    					chip8->memory[chip8->I + i] = chip8->V[i];
+    				}
+    				break;
+    			}
+    			
+    			case 0x0065: {
+    				for(int i=0; i<16; i++){
+    					chip8->V[i] = chip8->memory[chip8->I + i];
+    				}
+    				break;
+    			}
+    		}
 		default: printf("wrong opcode! opcode:%04x\n", chip8->opcode); break;
 	}
+}
+
+
+void display(struct Chip8 *chip8){
+    
+    BeginDrawing();
+    
+    ClearBackground(BLACK);
+    
+    for(int rows=0; rows<32; rows++){
+        for(int cols=0; cols<64; cols++){
+            if(chip8->gfx[cols][rows] == 1){
+                DrawRectangle(cols*10, rows*10, 10, 10, RAYWHITE);
+            }
+        }
+    }
+    
+    EndDrawing();
+}
+
+void input(struct Chip8 *chip8){
+    if(IsKeyDown(KEY_ONE)){
+        chip8->V[0] = 1;
+    }
+    else if(IsKeyDown(KEY_TWO)){
+        chip8->V[1] = 1;
+    }
+    else if(IsKeyDown(KEY_THREE)){
+        chip8->V[2] = 1;
+    }
+    else if(IsKeyDown(KEY_FOUR)){
+        chip8->V[3] = 1;
+    }
+    else if(IsKeyDown(KEY_Q)){
+        chip8->V[4] = 1;
+    }
+    else if(IsKeyDown(KEY_W)){
+        chip8->V[5] = 1;
+    }
+    else if(IsKeyDown(KEY_E)){
+        chip8->V[6] = 1;
+    }
+    else if(IsKeyDown(KEY_R)){
+        chip8->V[7] = 1;
+    }
+    else if(IsKeyDown(KEY_A)){
+        chip8->V[8] = 1;
+    }
+    else if(IsKeyDown(KEY_S)){
+        chip8->V[9] = 1;
+    }
+    else if(IsKeyDown(KEY_D)){
+        chip8->V[10] = 1;
+    }
+    else if(IsKeyDown(KEY_F)){
+        chip8->V[11] = 1;
+    }
+    else if(IsKeyDown(KEY_Z)){
+        chip8->V[12] = 1;
+    }
+    else if(IsKeyDown(KEY_X)){
+        chip8->V[13] = 1;
+    }
+    else if(IsKeyDown(KEY_C)){
+        chip8->V[14] = 1;
+    }
+    else if(IsKeyDown(KEY_V)){
+        chip8->V[15] = 1;
+    }
+    
+    
+    if(IsKeyUp(KEY_ONE)){
+        chip8->V[0] = 1;
+    }
+    else if(IsKeyUp(KEY_TWO)){
+        chip8->V[1] = 1;
+    }
+    else if(IsKeyUp(KEY_THREE)){
+        chip8->V[2] = 1;
+    }
+    else if(IsKeyUp(KEY_FOUR)){
+        chip8->V[3] = 1;
+    }
+    else if(IsKeyUp(KEY_Q)){
+        chip8->V[4] = 1;
+    }
+    else if(IsKeyUp(KEY_W)){
+        chip8->V[5] = 1;
+    }
+    else if(IsKeyUp(KEY_E)){
+        chip8->V[6] = 1;
+    }
+    else if(IsKeyUp(KEY_R)){
+        chip8->V[7] = 1;
+    }
+    else if(IsKeyUp(KEY_A)){
+        chip8->V[8] = 1;
+    }
+    else if(IsKeyUp(KEY_S)){
+        chip8->V[9] = 1;
+    }
+    else if(IsKeyUp(KEY_D)){
+        chip8->V[10] = 1;
+    }
+    else if(IsKeyUp(KEY_F)){
+        chip8->V[11] = 1;
+    }
+    else if(IsKeyUp(KEY_Z)){
+        chip8->V[12] = 1;
+    }
+    else if(IsKeyUp(KEY_X)){
+        chip8->V[13] = 1;
+    }
+    else if(IsKeyUp(KEY_C)){
+        chip8->V[14] = 1;
+    }
+    else if(IsKeyUp(KEY_V)){
+        chip8->V[15] = 1;
+    }
 }

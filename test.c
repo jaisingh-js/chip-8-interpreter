@@ -1,18 +1,14 @@
 #include <stdio.h>
 
 int main(){
-
-    int num = 255;
-    int a, b, c;
-
-    a = num/100;
-    printf("%d\n", a);
-
-    b = (num%100)/10;
-    printf("%d\n", b);
-
-    c = num % 10;
-    printf("%d\n", c);
+    
+    unsigned char opcode = 0xf21e & 0x001e;
+    
+    switch(opcode){
+        case 0x001e:
+            printf("working");
+            break;
+    }
 
     return 0;
 }
