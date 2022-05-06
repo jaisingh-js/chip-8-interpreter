@@ -54,7 +54,7 @@ int main(int arg, char **argv){
 	        --chip8.sound_delay;
 	    }
 	    display(&chip8);
-	    input(&chip8);
+	    //input(&chip8);
 	}
 	
 	CloseWindow();
@@ -247,7 +247,7 @@ void emulate(struct Chip8 *chip8){
 		//jump addr
 		//checked
 		case 0x1000: {
-		    chip8->pc = chip8->opcode & 0x0FFF; 
+		    chip8->pc = chip8->opcode & 0x0FFF;
 		    break;
 		}
 		
@@ -343,7 +343,7 @@ void emulate(struct Chip8 *chip8){
 					chip8->V[15] = 0;
 				}
 
-				chip8->V[(chip8->opcode & 0x0F00) >> 8] = chip8->V[(chip8->opcode & 0x0F00) >> 8] & 0xFF;
+				chip8->V[(chip8->opcode & 0x0F00) >> 8] = sum & 0xFF;
 				break;
 			}
 
@@ -429,20 +429,20 @@ void emulate(struct Chip8 *chip8){
 		    
 		    chip8->V[15] = 0;
 		    
-		    for(int i=0; i<height; ++i){
+		    for(int i=0; i<height; i++){
 		        unsigned char spriteByte = chip8->memory[chip8->I + i];
 		        
-		        for(int j=0; j<8; ++j){
+		        for(int j=0; j<8; j++){
 		            unsigned char spritePixel = spriteByte & (0x80 >> j);
 		            unsigned char displayPixel = chip8->gfx[x+j][y+i];
 		            
 		            if(spritePixel != 0){
 		                
-		                if(displayPixel == 0xFF){
+		                if(displayPixel == 1){
 		                    chip8->V[15] = 1;
 		                }
 		                
-		                chip8->gfx[x+j][y+i] ^= 0xFF;
+		                chip8->gfx[x+j][y+i] ^= 1;
 		                //printf("%d %d: %x\n", x+j, y+i, chip8->gfx[x+j][y+i]);
 		            }
 		        }
@@ -586,7 +586,7 @@ void emulate(struct Chip8 *chip8){
                 //Fx55 store registers V0 to Vx in memory at I to Ix
                 //working
     			case 0x0055: {
-    			    int iteration = chip8->V[(chip8->opcode & 0x0F00) >> 8];
+    			    int iteration = (chip8->opcode & 0x0F00) >> 8;
     				for(int i=0; i<=iteration; i++){
     					chip8->memory[chip8->I + i] = chip8->V[i];
     				}
@@ -596,7 +596,7 @@ void emulate(struct Chip8 *chip8){
     			//Fx65 read registers from I0 throught Ix to registers
     			//working
     			case 0x0065: {
-    			    int iteration = chip8->V[(chip8->opcode & 0x0F00) >> 8];
+    			    int iteration = (chip8->opcode & 0x0F00) >> 8;
     				for(int i=0; i<=iteration; i++){
     					chip8->V[i] = chip8->memory[chip8->I + i];
     				}
@@ -619,8 +619,8 @@ void display(struct Chip8 *chip8){
         
         for(int rows=0; rows<32; rows++){
             for(int cols=0; cols<64; cols++){
-                if(chip8->gfx[cols][rows] == 0xFF){
-                    DrawRectangle(cols*10 - 5, rows*10, 10, 10, RAYWHITE);
+                if(chip8->gfx[cols][rows] == 1){
+                    DrawRectangle(cols*10, rows*10, 10, 10, RAYWHITE);
                 }
             }
         }

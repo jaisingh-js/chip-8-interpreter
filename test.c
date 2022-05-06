@@ -1,34 +1,32 @@
 #include <stdio.h>
-
-
-void printBinary(int num){
-	int result[8];
-	int n = num;
-	for(int i=0; i<8; i++){
-		result[i] = 0;
-	}
-
-	for(int i=0; n>0; i++){
-		result[i] = n % 2;
-		n = n/2;
-	}
-
-	for(int i=1; i<=8; i++){
-		printf("%d", result[8-i]);
-	}
-    printf("\n");
-}
+#include <raylib.h>
 
 int main(){
-    
-    int num = 0;
 
-    while(num != 256){
-        printf("enter number to convert: ");
-        scanf("%d", &num);
-        printf("\n");
-        printBinary(num);    
-    }
+	const int width = 500;
+	const int height = 500;
 
+	int key = 0;
+
+	InitWindow(width, height, "test");
+
+	SetTargetFPS(60);
+
+	while(!WindowShouldClose()){
+		
+		//key = GetKeyPressed();
+		if(IsKeyDown(49)){
+			printf("1 down");
+		}
+
+		BeginDrawing();
+
+		ClearBackground(PURPLE);
+
+		EndDrawing();
+
+	}
+
+	CloseWindow();
     return 0;
 }
