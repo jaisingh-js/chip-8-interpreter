@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHIP-8 Emulator</title>
+    <style>
+        #canvas {
+            border: 1px solid black;
+        }
+        #controls {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="file" id="filePicker" />
+        <button id="start">Start</button>
+    </div>
+    <canvas id="canvas" width="640" height="320"></canvas>
+    <script type="module">
+        import { CPU } from './cpu.js'; // Adjust the path if necessary
+
+        // Initialize canvas and context
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const scale = 10; // Scale factor for each pixel
+        context.scale(scale, scale);
+
+        // Initialize the CPU
+        const cpu = new CPU();
+
+        // Function to update the canvas with the display data
+        function updateCanvas() {
+            const display = cpu.getDisplay();
+            const imageData = context.createImageData(canvas.width, canvas.height);
+            for (let i = 0; i < display.length; i++) {
+                const color = display[i] ? 0xFF : 0x00; // 1 for white, 0 for black
+                const index = i * 4;
+                imageData.data[index] = color;      // Red
+                imageData.data[index + 1] = color;  // Green
+                imageData.data[index + 2] = color;  // Blue
+                imageData.data[index + 3] = 0xFF;  // Alpha
+            }
+            context.putImageData(imageData, 0, 0);
+        }
+
+        // Function to load and start the ROM
+        function loadROM(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const arrayBuffer = event.target.result;
+                const bytes = new Uint8Array(arrayBuffer);
+
+                // Reset the CPU
+                cpu.reset();
+
+                // Load the ROM into memory
+                for (let i = 0; i < bytes.length; i++) {
+                    cpu.memory.write(0x200 + i, bytes[i]);
+                }
+
+                // Start the CPU
+                setInterval(() => {
+                    cpu.step();
+                    updateCanvas();
+                }, 16); // 60 Hz (16 ms per frame)
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Set up event listeners
+        document.getElementById('filePicker').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                loadROM(file);
+            }
+        });
+
+        document.getElementById('start').addEventListener('click', () => {
+            // Start the CPU emulation
+            setInterval(() => {
+                cpu.step();
+                updateCanvas();
+            }, 16); // 60 Hz (16 ms per frame)
+        });
+    </script>
+</body>
+</html>
