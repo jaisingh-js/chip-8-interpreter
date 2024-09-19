@@ -44,11 +44,45 @@ class CPU {
           //clear the display
           this.display.fill(0);
         }
+        else if(opcode === 0x00EE) {
+            this.PC = this.stack[this.SP];
+            this.SP -= 1;
+        }
         break;
       case 0x1000:
         //Jump to address NNN
         this.PC = opcode & 0x0FFF;
         break;
+      case 0x2000:
+        this.SP += 1;
+        this.stack[this.SP] = this.PC;
+        this.PC = opcode & 0x0FFF;
+        break;
+      case 0x3000: {
+        const x = (opcode & 0x0F00) >> 8;
+        const kk = opcode & 0x00FF;
+        if(this.registers[x] === kk) {
+          this.PC += 2;
+        }
+        break;
+      }
+      case 0x4000: {
+        const x = (opcode & 0x0F00) >> 8;
+        const kk = opcode & 0x00FF;
+        if(this.registers[x] !== kk) {
+          this.PC += 2;
+        }
+        break;
+      }
+      case 0x5000: {
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
+
+        if(this.registers[x] === this.registers[y]) {
+          this.PC += 2;
+        }
+        break;
+      }
       case 0x6000:
         // Set register VX to NN
         const x = (opcode & 0x0F00) >> 8;
@@ -64,10 +98,80 @@ class CPU {
         // Handle overflow
         this.registers[x7] &= 0xFF;
         break;
+      case 0x8000:
+        switch (opcode & 0x000F) {
+          case 0x0000: // 8XY0: Set VX to the value of VY
+            this.registers[(opcode & 0x0F00) >> 8] = this.registers[(opcode & 0x00F0) >> 4];
+            break;
+          case 0x0001: // 8XY1: Set VX to VX | VY
+            this.registers[(opcode & 0x0F00) >> 8] |= this.registers[(opcode & 0x00F0) >> 4];
+            break;
+          case 0x0002: // 8XY2: Set VX to VX & VY
+            this.registers[(opcode & 0x0F00) >> 8] &= this.registers[(opcode & 0x00F0) >> 4];
+            break;
+          case 0x0003: // 8XY3: Set VX to VX ^ VY
+            this.registers[(opcode & 0x0F00) >> 8] ^= this.registers[(opcode & 0x00F0) >> 4];
+            break;
+          case 0x0004: { // 8XY4: Add VY to VX, set VF if carry
+            const x = (opcode & 0x0F00) >> 8;
+            const y = (opcode & 0x00F0) >> 4;
+            const sum = this.registers[x] + this.registers[y];
+            this.registers[0xF] = sum > 0xFF ? 1 : 0;
+            this.registers[x] = sum & 0xFF;
+            break;
+          }
+          case 0x0005: { // 8XY5: Subtract VY from VX, set VF if no borrow
+            const x = (opcode & 0x0F00) >> 8;
+            const y = (opcode & 0x00F0) >> 4;
+            this.registers[0xF] = this.registers[x] > this.registers[y] ? 1 : 0;
+            this.registers[x] = (this.registers[x] - this.registers[y]) & 0xFF;
+            break;
+          }
+          case 0x0006: { // 8XY6: Store LSB of VX in VF, then shift VX right by 1
+            const x = (opcode & 0x0F00) >> 8;
+            this.registers[0xF] = this.registers[x] & 0x1;
+            this.registers[x] >>= 1;
+            break;
+          }
+          case 0x0007: { // 8XY7: Set VX to VY - VX, set VF if no borrow
+            const x = (opcode & 0x0F00) >> 8;
+            const y = (opcode & 0x00F0) >> 4;
+            this.registers[0xF] = this.registers[y] > this.registers[x] ? 1 : 0;
+            this.registers[x] = (this.registers[y] - this.registers[x]) & 0xFF;
+            break;
+          }
+          case 0x000E: { // 8XYE: Store MSB of VX in VF, then shift VX left by 1
+            const x = (opcode & 0x0F00) >> 8;
+            this.registers[0xF] = (this.registers[x] & 0x80) >> 7;
+            this.registers[x] = (this.registers[x] << 1) & 0xFF;
+            break;
+          }
+        }
+        break;
+      case 0x9000: {
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
+
+        if(this.registers[x] !== this.registers[y]) {
+          this.PC += 2;
+        }
+        break;
+      }
       case 0xA000:
         // set index register I to NNN
         this.I = opcode & 0x0FFF;
         break;
+      case 0xB000: {
+        this.PC = (opcode & 0x0FFF) + this.registers[0];
+        break;
+      }
+      case 0xC000: {
+        const randomNum = Math.floor(Math.random() * 256);
+        const x = (opcode & 0x0F00) >> 8;
+        const kk = opcode & 0x00FF;
+        this.registers[x] = randomNum & kk;
+        break;
+      }
       case 0xD000: {
         // Draw sprite
         const x = this.registers[(opcode & 0x0F00) >> 8];
@@ -147,59 +251,15 @@ class CPU {
             this.I &= 0xFFFF // Ensure I stays within 16-bit
             break;
           }
+          case 0x029: {
+            const x = (opcode & 0x0F00) >> 8;
+            this.I = this.registers[x] * 5;
+            break;
+          }
         }
         break;
 
-      case 0x8000:
-        switch (opcode & 0x000F) {
-          case 0x0000: // 8XY0: Set VX to the value of VY
-            this.registers[(opcode & 0x0F00) >> 8] = this.registers[(opcode & 0x00F0) >> 4];
-            break;
-          case 0x0001: // 8XY1: Set VX to VX | VY
-            this.registers[(opcode & 0x0F00) >> 8] |= this.registers[(opcode & 0x00F0) >> 4];
-            break;
-          case 0x0002: // 8XY2: Set VX to VX & VY
-            this.registers[(opcode & 0x0F00) >> 8] &= this.registers[(opcode & 0x00F0) >> 4];
-            break;
-          case 0x0003: // 8XY3: Set VX to VX ^ VY
-            this.registers[(opcode & 0x0F00) >> 8] ^= this.registers[(opcode & 0x00F0) >> 4];
-            break;
-          case 0x0004: { // 8XY4: Add VY to VX, set VF if carry
-            const x = (opcode & 0x0F00) >> 8;
-            const y = (opcode & 0x00F0) >> 4;
-            const sum = this.registers[x] + this.registers[y];
-            this.registers[0xF] = sum > 0xFF ? 1 : 0;
-            this.registers[x] = sum & 0xFF;
-            break;
-          }
-          case 0x0005: { // 8XY5: Subtract VY from VX, set VF if no borrow
-            const x = (opcode & 0x0F00) >> 8;
-            const y = (opcode & 0x00F0) >> 4;
-            this.registers[0xF] = this.registers[x] > this.registers[y] ? 1 : 0;
-            this.registers[x] = (this.registers[x] - this.registers[y]) & 0xFF;
-            break;
-          }
-          case 0x0006: { // 8XY6: Store LSB of VX in VF, then shift VX right by 1
-            const x = (opcode & 0x0F00) >> 8;
-            this.registers[0xF] = this.registers[x] & 0x1;
-            this.registers[x] >>= 1;
-            break;
-          }
-          case 0x0007: { // 8XY7: Set VX to VY - VX, set VF if no borrow
-            const x = (opcode & 0x0F00) >> 8;
-            const y = (opcode & 0x00F0) >> 4;
-            this.registers[0xF] = this.registers[y] > this.registers[x] ? 1 : 0;
-            this.registers[x] = (this.registers[y] - this.registers[x]) & 0xFF;
-            break;
-          }
-          case 0x000E: { // 8XYE: Store MSB of VX in VF, then shift VX left by 1
-            const x = (opcode & 0x0F00) >> 8;
-            this.registers[0xF] = (this.registers[x] & 0x80) >> 7;
-            this.registers[x] = (this.registers[x] << 1) & 0xFF;
-            break;
-          }
-        }
-        break;
+      
       default:
         console.log(`Unknown opcode: ${opcode.toString(16)}`);
     }
