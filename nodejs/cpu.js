@@ -47,16 +47,19 @@ class CPU {
         else if(opcode === 0x00EE) {
             this.PC = this.stack[this.SP];
             this.SP -= 1;
+            this.PC -= 2;
         }
         break;
       case 0x1000:
         //Jump to address NNN
         this.PC = opcode & 0x0FFF;
+        this.PC -= 2;
         break;
       case 0x2000:
         this.SP += 1;
         this.stack[this.SP] = this.PC;
         this.PC = opcode & 0x0FFF;
+        this.PC -= 2;
         break;
       case 0x3000: {
         const x = (opcode & 0x0F00) >> 8;
@@ -163,6 +166,7 @@ class CPU {
         break;
       case 0xB000: {
         this.PC = (opcode & 0x0FFF) + this.registers[0];
+        this.PC -= 2;
         break;
       }
       case 0xC000: {
@@ -255,6 +259,25 @@ class CPU {
             const x = (opcode & 0x0F00) >> 8;
             this.I = this.registers[x] * 5;
             break;
+          }
+          case 0x033: {
+            const x = (opcode & 0x0F00) >> 8;
+            const value = this.registers[x];
+            this.memory[this.I] = Math.floor(value / 100);
+            this.memory[this.I + 1] = Math.floor((value / 10) % 10);
+            this.memory[this.I + 2] = value % 10;
+          }
+          case 0x055: {
+            const x = (opcode & 0x0F00) >> 8;
+            for(let i=0; i<=x; i++) {
+              this.memory[this.I = i] = this.registers[i];
+            }
+          }
+          case 0x065: {
+            const x = (opcode & 0x0F00) >> 8;
+            for(let i=0; i<x; i++) {
+              this.registers[i] = this.memory[this.I + i];
+            }
           }
         }
         break;
