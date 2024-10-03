@@ -43,23 +43,25 @@ class CPU {
         if (opcode === 0x00E0) {
           //clear the display
           this.display.fill(0);
+          break;
         }
         else if(opcode === 0x00EE) {
-            this.PC = this.stack[this.SP];
             this.SP -= 1;
-            this.PC -= 2;
+            this.PC = this.stack[this.SP];
+            // this.PC -= 2;
+            break;
         }
         break;
       case 0x1000:
         //Jump to address NNN
         this.PC = opcode & 0x0FFF;
-        this.PC -= 2;
+        // this.PC -= 2;
         break;
       case 0x2000:
-        this.SP += 1;
         this.stack[this.SP] = this.PC;
+        this.SP += 1;
         this.PC = opcode & 0x0FFF;
-        this.PC -= 2;
+        // this.PC -= 2;
         break;
       case 0x3000: {
         const x = (opcode & 0x0F00) >> 8;
@@ -166,7 +168,7 @@ class CPU {
         break;
       case 0xB000: {
         this.PC = (opcode & 0x0FFF) + this.registers[0];
-        this.PC -= 2;
+        // this.PC -= 2;
         break;
       }
       case 0xC000: {
@@ -215,6 +217,7 @@ class CPU {
             if (this.keys[this.registers[(opcode & 0x0F00) >> 8]] === 0) {
               this.PC += 2;
             }
+            break;
         }
         break;
       case 0xF000:
@@ -226,7 +229,7 @@ class CPU {
               this.registers[x] = keyPress;
             }
             else {
-              this.PC -= 2; // If no key is pressed, repeat this instruction
+              // this.PC -= 2; // If no key is pressed, repeat this instruction
             }
             break;
           }
@@ -255,29 +258,33 @@ class CPU {
             this.I &= 0xFFFF // Ensure I stays within 16-bit
             break;
           }
-          case 0x029: {
+          case 0x0029: {
             const x = (opcode & 0x0F00) >> 8;
             this.I = this.registers[x] * 5;
             break;
           }
-          case 0x033: {
+          case 0x0033: {
             const x = (opcode & 0x0F00) >> 8;
             const value = this.registers[x];
             this.memory[this.I] = Math.floor(value / 100);
             this.memory[this.I + 1] = Math.floor((value / 10) % 10);
             this.memory[this.I + 2] = value % 10;
+            break;
           }
-          case 0x055: {
+          case 0x0055: {
             const x = (opcode & 0x0F00) >> 8;
             for(let i=0; i<=x; i++) {
-              this.memory[this.I = i] = this.registers[i];
+              this.memory[this.I + i] = this.registers[i];
             }
+            console.log(this.registers);
+            break;
           }
-          case 0x065: {
+          case 0x0065: {
             const x = (opcode & 0x0F00) >> 8;
-            for(let i=0; i<x; i++) {
+            for(let i=0; i<=x; i++) {
               this.registers[i] = this.memory[this.I + i];
             }
+            break;
           }
         }
         break;
@@ -295,6 +302,17 @@ class CPU {
   step() {
     const opcode = this.fetch();
     this.execute(opcode);
+  }
+
+
+  tickTimers() {
+    if(this.delayTimer > 0) {
+      this.delayTimer -= 1;
+    }
+
+    if(this.soundTimer > 0) {
+      this.soundTimer -= 1;
+    }
   }
 }
 

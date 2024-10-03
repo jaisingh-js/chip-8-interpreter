@@ -26,7 +26,7 @@
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
         const scale = 10; // Scale factor for each pixel
-        context.scale(scale, scale);
+        // context.scale(scale, scale);
 
         // Initialize the CPU
         const cpu = new CPU();
@@ -36,12 +36,46 @@
             const display = cpu.getDisplay();
             const cols = 64;
             const rows = 32;
-            for(let i=0; i < display.length; i++) {
-                const value = display[i];
-                const col = value % cols;
-                const row = Math.floor(value / rows);
-                context.fillStyle = value === 1 ? 'black' : 'white'; // Set color based on value
-                context.fillRect(col, row, 1, 1); // Draw the rectangle (scaled)
+            
+            // for(let i=0; i < display.length; i++) {
+            //     const value = display[i];`
+            //     const col = display.length % cols;
+            //     const row = Math.floor(display.length / rows);
+            //     context.fillStyle = value === 1 ? 'black' : 'black'; // Set color based on value
+            //     context.fillRect(col, row, 1, 1); // Draw the rectangle (scaled)
+            // }
+            for(let row=0; row<rows; row++) {
+                for(let col =0; col<cols; col++) {
+                    const value = display[col + row * cols];
+                    context.fillStyle = value === 1 ? 'black' : 'white';
+                    context.fillRect(col * scale, row * scale, scale, scale);
+                }
+            }
+        }
+
+        function updateCanvasNew() {
+            const display = cpu.getDisplay();
+            const cols = 64;
+            const rows = 32;
+            // Clears the display every render cycle. Typical for a render loop.
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        
+            // Loop through our display array
+            for (let i = 0; i < cols * rows; i++) {
+                // Grabs the x position of the pixel based off of `i`
+                let x = (i % cols) * scale;
+
+                // Grabs the y position of the pixel based off of `i`
+                let y = Math.floor(i / cols) * scale;
+
+                // If the value at this.display[i] == 1, then draw a pixel.
+                if (display[i]) {
+                    // Set the pixel color to black
+                    context.fillStyle = '#000';
+
+                    // Place a pixel at position (x, y) with a width and height of scale
+                    context.fillRect(x, y, scale, scale);
+                }
             }
         }
 
@@ -64,6 +98,7 @@
                 setInterval(() => {
                     cpu.step();
                     updateCanvas();
+                    cpu.tickTimers();
                 }, 16); // 60 Hz (16 ms per frame)
             };
             reader.readAsArrayBuffer(file);
@@ -82,6 +117,7 @@
             setInterval(() => {
                 cpu.step();
                 updateCanvas();
+                cpu.tickTimers();
             }, 16); // 60 Hz (16 ms per frame)
         });
     </script>
